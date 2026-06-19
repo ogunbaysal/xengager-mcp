@@ -2,61 +2,73 @@
 
 ## Timeline & Explore (4 tools)
 
-| Tool | Description | X.com URL |
-|------|-------------|-----------|
-| `x_home_timeline` | "For You" algorithmic feed | `/home` |
-| `x_following_timeline` | "Following" chronological feed | `/home` → clicks "Following" tab |
-| `x_explore` | Trending tweets | `/explore` |
-| `x_trends` | Trending topics list | `/i/trends` |
+These tools return the browser-rendered feed — the same content you'd see on X.com.
 
-**Parameters**: `limit` (1–100, default 20), `cursor` (tweet ID or trend ID from previous `nextCursor`)
+| Tool | What it returns |
+|------|----------------|
+| `x_home_timeline` | "For You" algorithmic feed |
+| `x_following_timeline` | "Following" chronological feed |
+| `x_explore` | Trending tweets from the Explore tab |
+| `x_trends` | Trending topic list (hashtags/keywords, not tweets) |
 
-**Response shape** (tweets):
+**Parameters** (all four tools):
+- `limit` — number of items to return, 1–100 (default 20)
+- `cursor` — pagination cursor from previous result's `nextCursor`
+
+**Example:**
 ```json
-{ "items": [/* Tweet[] */], "nextCursor": "185045…", "hasMore": true }
+{ "tool": "x_home_timeline", "arguments": { "limit": 20 } }
+{ "tool": "x_home_timeline", "arguments": { "limit": 20, "cursor": "1850458579500921331" } }
 ```
 
-**Response shape** (trends — `x_trends`):
+**Response shape** (timeline tools):
 ```json
-{ "items": [/* Trend[] */], "nextCursor": "trend-id", "hasMore": false }
+{ "items": [ /* Tweet[] */ ], "nextCursor": "1850458579500921331", "hasMore": true }
+```
+
+**Response shape** (`x_trends`):
+```json
+{ "items": [ /* Trend[] */ ], "nextCursor": "trend-id", "hasMore": false }
 ```
 
 ---
 
-## Search (1 tool)
+## Search (1 tool): `x_search`
 
-**Tool**: `x_search`
+Full-text search with X's advanced operators.
 
-**Parameters**:
-- `query` — text query with optional X operators
-- `tab` — `"top"` | `"latest"` | `"people"` | `"media"` (default `"top"`)
+**Parameters:**
+- `query` — search text, supports operators below
+- `tab` — `"top"` (default) | `"latest"` | `"media"` — **do not use `"people"`**, it returns an error; use `x_user_following` for user search
 - `limit` — 1–100 (default 20)
 - `cursor` — tweet ID for pagination
 
-**Advanced operator cheat sheet**:
-```
-from:username      — tweets by a specific user
-to:username        — tweets replying to a user
-since:YYYY-MM-DD   — tweets after date
-until:YYYY-MM-DD   — tweets before date
-lang:en            — language filter
-min_likes:100      — minimum likes threshold
-min_retweets:50    — minimum reposts threshold
-has:media          — tweets with images/video
-filter:links       — tweets containing URLs
+**Example:**
+```json
+{ "tool": "x_search", "arguments": { "query": "AI agents from:OpenAI lang:en min_likes:500", "tab": "latest", "limit": 20 } }
 ```
 
-**Notes**:
-- `tab: "people"` returns an error — use `x_user_following` for user search instead
-- `tab: "media"` for image/video-only results
-- Combine operators for precision: `from:OpenAI lang:en min_likes:500`
+**Advanced operator cheat sheet:**
+```
+from:username       tweets by a specific user
+to:username         tweets replying to a user
+since:YYYY-MM-DD    tweets after this date
+until:YYYY-MM-DD    tweets before this date
+lang:en             filter by language
+min_likes:100       minimum likes threshold
+min_retweets:50     minimum reposts threshold
+has:media           tweets with images/video only
+filter:links        tweets containing URLs only
+```
+
+Combine operators freely: `from:OpenAI since:2026-01-01 min_likes:1000`
 
 ---
 
 ## Workflow: "What's happening on X right now?"
 
 ```
-1. x_trends                          → get trending topics
-2. x_search(topic, tab: "top")       → top tweets for a trend
-   OR x_explore()                    → trending tweets directly
+1. x_trends                              → get list of trending topics
+2. x_search(topic, tab: "top")           → top tweets for a specific trend
+   OR x_explore()                        → trending tweets directly without a query
 ```

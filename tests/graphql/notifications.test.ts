@@ -14,7 +14,8 @@ const mockPage = {
 };
 
 mock.module("../../src/browser.js", () => ({
-  getPage: async () => mockPage,
+  withReadPage: async (fn: (page: any) => any) => fn(mockPage),
+  withWritePage: async (fn: (page: any) => any) => fn(mockPage),
 }));
 
 const { parseNotificationsResponse } = await import("../../src/graphql/parser.js");

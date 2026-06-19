@@ -30,6 +30,7 @@ const user = {
   verified: true,
   profileImageUrl: "https://img/alice.jpg",
   createdAt: "Mon Jan 01 00:00:00 +0000 2020",
+  isFollowing: true,
 };
 
 class MockTwitterGraphQLClient {

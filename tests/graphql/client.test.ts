@@ -22,7 +22,8 @@ const mockPage = {
 };
 
 mock.module("../../src/browser.js", () => ({
-  getPage: async () => mockPage,
+  withReadPage: async (fn: (page: any) => any) => fn(mockPage),
+  withWritePage: async (fn: (page: any) => any) => fn(mockPage),
 }));
 
 // Import after mocking
@@ -407,6 +408,107 @@ describe("createTweet with mediaIds", () => {
     const body = JSON.parse(lastEvaluateInit?.body ?? "{}");
     expect(body.variables?.media?.media_entities).toHaveLength(2);
     expect(body.variables?.media?.media_entities[0]?.media_id).toBe("media-id-1");
+  });
+});
+
+// ── followUser / unfollowUser ──────────────────────────────────────────────
+
+describe("followUser", () => {
+  test("calls friendships/create.json REST API", async () => {
+    mockEvaluateResponse = {
+      data: {
+        user: {
+          result: {
+            rest_id: "u999",
+            is_blue_verified: false,
+            core: { name: "Target", screen_name: "targetuser", created_at: "Mon Jan 01 00:00:00 +0000 2020" },
+            legacy: {
+              name: "Target", screen_name: "targetuser", description: "", location: "",
+              followers_count: 0, friends_count: 0, statuses_count: 0,
+              favourites_count: 0, profile_image_url_https: "", created_at: "Mon Jan 01 00:00:00 +0000 2020",
+            },
+          },
+        },
+      },
+    };
+    const client = makeClient();
+    await client.followUser("targetuser");
+    // After two evaluate calls (fetchUser + write), last capture is the write
+    expect(lastEvaluateUrl).toBe("https://x.com/i/api/1.1/friendships/create.json");
+    // Body is passed as separate arg (not inside an init object)
+    expect(lastEvaluateInit).toContain("user_id=u999");
+    expect(lastEvaluateInit).toContain("include_profile_interstitial_type=1");
+  });
+
+  test("returns success result", async () => {
+    mockEvaluateResponse = {
+      data: {
+        user: {
+          result: {
+            rest_id: "u999",
+            is_blue_verified: false,
+            core: { name: "Target", screen_name: "targetuser", created_at: "Mon Jan 01 00:00:00 +0000 2020" },
+            legacy: {
+              name: "Target", screen_name: "targetuser", description: "", location: "",
+              followers_count: 0, friends_count: 0, statuses_count: 0,
+              favourites_count: 0, profile_image_url_https: "", created_at: "Mon Jan 01 00:00:00 +0000 2020",
+            },
+          },
+        },
+      },
+    };
+    const client = makeClient();
+    const result = await client.followUser("targetuser");
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("unfollowUser", () => {
+  test("calls friendships/destroy.json REST API", async () => {
+    mockEvaluateResponse = {
+      data: {
+        user: {
+          result: {
+            rest_id: "u999",
+            is_blue_verified: false,
+            core: { name: "Target", screen_name: "targetuser", created_at: "Mon Jan 01 00:00:00 +0000 2020" },
+            legacy: {
+              name: "Target", screen_name: "targetuser", description: "", location: "",
+              followers_count: 0, friends_count: 0, statuses_count: 0,
+              favourites_count: 0, profile_image_url_https: "", created_at: "Mon Jan 01 00:00:00 +0000 2020",
+            },
+          },
+        },
+      },
+    };
+    const client = makeClient();
+    await client.unfollowUser("targetuser");
+    // After two evaluate calls (fetchUser + write), last capture is the write
+    expect(lastEvaluateUrl).toBe("https://x.com/i/api/1.1/friendships/destroy.json");
+    expect(lastEvaluateInit).toContain("user_id=u999");
+    expect(lastEvaluateInit).toContain("include_profile_interstitial_type=1");
+  });
+
+  test("returns success result", async () => {
+    mockEvaluateResponse = {
+      data: {
+        user: {
+          result: {
+            rest_id: "u999",
+            is_blue_verified: false,
+            core: { name: "Target", screen_name: "targetuser", created_at: "Mon Jan 01 00:00:00 +0000 2020" },
+            legacy: {
+              name: "Target", screen_name: "targetuser", description: "", location: "",
+              followers_count: 0, friends_count: 0, statuses_count: 0,
+              favourites_count: 0, profile_image_url_https: "", created_at: "Mon Jan 01 00:00:00 +0000 2020",
+            },
+          },
+        },
+      },
+    };
+    const client = makeClient();
+    const result = await client.unfollowUser("targetuser");
+    expect(result.success).toBe(true);
   });
 });
 

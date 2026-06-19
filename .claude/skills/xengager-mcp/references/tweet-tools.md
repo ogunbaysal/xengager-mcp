@@ -1,53 +1,90 @@
 # Tweet Interaction Tools (10 tools)
 
-## Read-only
+## Read-only Tools
 
-| Tool | Description | Accepts |
-|------|-------------|---------|
-| `x_get_tweet` | Fetch a single tweet | Tweet URL **or** bare numeric tweet ID |
-| `x_tweet_replies` | Fetch replies to a tweet | Tweet URL + `limit?`, `cursor?` |
+### `x_get_tweet`
+Fetch a single tweet by URL or ID.
 
-**Tweet ID shortcut**: Pass a bare numeric ID (e.g. `"1850458579500921331"`) instead of a full URL — the tool auto-converts it.
+```json
+{ "tool": "x_get_tweet", "arguments": { "url": "https://x.com/user/status/1850458579500921331" } }
+{ "tool": "x_get_tweet", "arguments": { "url": "1850458579500921331" } }
+```
 
-**`x_tweet_replies`** excludes the original tweet. Pair with `x_get_tweet` if you need both.
+Both forms work — bare numeric IDs are auto-converted to the canonical URL.
+
+### `x_tweet_replies`
+Fetch replies to a tweet.
+
+```json
+{ "tool": "x_tweet_replies", "arguments": { "url": "https://x.com/user/status/123", "limit": 20, "cursor": "..." } }
+```
+
+**Note**: The original tweet is NOT included in results. Use `x_get_tweet` first if you need it.
 
 ---
 
 ## Action Tools
 
-All action tools return `{ success: boolean, message: string }`.
-
-| Tool | Action | Notes |
-|------|--------|-------|
-| `x_like(url)` | Like a tweet | Skips if already liked |
-| `x_unlike(url)` | Remove a like | Graceful if not liked |
-| `x_repost(url)` | Repost (retweet) | Clicks confirmation dialog |
-| `x_unrepost(url)` | Undo a repost | Clicks confirmation dialog |
-| `x_bookmark(url)` | Bookmark a tweet | Skips if already bookmarked |
-| `x_unbookmark(url)` | Remove a bookmark | Verifies removal |
-| `x_quote_tweet(url, text)` | Quote tweet with commentary | Opens composer, types, submits |
-| `x_reply(url, text)` | Reply to a tweet | Opens composer, types, submits |
-| `x_post_tweet(texts[])` | Post a tweet or thread | Thread: 2–25 tweets, each ≤280 chars |
-
-**Idempotency**: Like/bookmark tools check if already applied and skip. Unlike/unbookmark check the button exists and report gracefully if not.
-
-## Posting a Thread
-
+All action tools accept a `url` parameter (tweet URL or bare numeric ID) and return:
 ```json
-{
-  "texts": ["First tweet (≤280 chars)", "Second tweet", "Third tweet"]
-}
+{ "success": true, "message": "Liked successfully" }
+{ "success": false, "message": "Like button not found" }
 ```
 
-Tweets are posted sequentially as chained replies. If any tweet in a thread fails, the response includes how many were posted before failure.
+| Tool | Action | Idempotency behavior |
+|------|--------|----------------------|
+| `x_like` | Like a tweet | Skips silently if already liked |
+| `x_unlike` | Remove a like | Reports gracefully if not liked |
+| `x_repost` | Repost (retweet) | Clicks confirmation dialog |
+| `x_unrepost` | Undo a repost | Clicks confirmation dialog |
+| `x_bookmark` | Bookmark a tweet | Skips silently if already bookmarked |
+| `x_unbookmark` | Remove a bookmark | Verifies removal after click |
+
+**Example:**
+```json
+{ "tool": "x_like", "arguments": { "url": "https://x.com/user/status/1850458579500921331" } }
+```
+
+### `x_reply`
+Reply to a tweet with text.
+
+```json
+{ "tool": "x_reply", "arguments": { "url": "https://x.com/user/status/123", "text": "Great point!" } }
+```
+
+### `x_quote_tweet`
+Quote a tweet with your own commentary.
+
+```json
+{ "tool": "x_quote_tweet", "arguments": { "url": "https://x.com/user/status/123", "text": "This is important because…" } }
+```
+
+### `x_post_tweet`
+Post a single tweet or a thread. Always pass `texts` as an array.
+
+```json
+// Single tweet
+{ "tool": "x_post_tweet", "arguments": { "texts": ["Hello, world!"] } }
+
+// Thread (2–25 tweets, each ≤280 characters)
+{ "tool": "x_post_tweet", "arguments": { "texts": ["Part 1 of my thread", "Part 2 continues here", "Part 3 conclusion"] } }
+```
+
+Returns: `{ "success": true, "message": "...", "tweetCount": 3 }`
+
+If a thread fails mid-way, `message` tells you how many tweets were posted before failure.
+
+---
 
 ## Tweet Object Shape
+
+Every read tool returns tweets in this shape:
 
 ```json
 {
   "id": "1850458579500921331",
   "url": "https://x.com/user/status/1850458579500921331",
-  "text": "Tweet content",
+  "text": "Tweet content here",
   "author": {
     "username": "handle",
     "displayName": "Display Name",
@@ -66,20 +103,15 @@ Tweets are posted sequentially as chained replies. If any tweet in a thread fail
 }
 ```
 
-## Workflow: "Engage with a tweet"
+---
+
+## Workflow: Engage with a tweet
 
 ```
-1. x_get_tweet(url)           → read the tweet first
-2. x_like(url)                → like it
-3. x_repost(url)              → repost it
-4. x_bookmark(url)            → save for later
-5. x_reply(url, text)         → reply to it
-6. x_quote_tweet(url, text)   → quote with commentary
-```
-
-## Workflow: "Post content"
-
-```
-Single tweet:  x_post_tweet({ texts: ["Hello, world!"] })
-Thread:        x_post_tweet({ texts: ["Part 1", "Part 2", "Part 3"] })
+1. x_get_tweet(url)          → read it first
+2. x_like(url)               → like it
+3. x_repost(url)             → repost it
+4. x_reply(url, text)        → reply to it
+5. x_quote_tweet(url, text)  → quote with commentary
+6. x_bookmark(url)           → save for later
 ```

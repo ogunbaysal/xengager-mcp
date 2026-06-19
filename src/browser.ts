@@ -2,6 +2,7 @@ import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import type { Browser, Page } from "puppeteer";
 import { TIMINGS } from "./timings.js";
+import { PageQueue } from "./queue.js";
 
 puppeteer.use(StealthPlugin());
 
@@ -17,46 +18,25 @@ const USER_AGENTS = [
 ];
 
 let _browser: Browser | null = null;
-let _page: Page | null = null;
+let _readPage: Page | null = null;
+let _writePage: Page | null = null;
+
+const readQueue = new PageQueue();
+const writeQueue = new PageQueue();
 
 export function randSleep(min: number, max: number): Promise<void> {
   const ms = Math.floor(Math.random() * (max - min + 1)) + min;
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function launch(): Promise<{ browser: Browser; page: Page }> {
-  const authToken = process.env.X_AUTH_TOKEN;
-  const ct0 = process.env.X_CT0;
-
-  if (!authToken || !ct0) {
-    throw new Error(
-      "Missing X_AUTH_TOKEN or X_CT0 in environment. " +
-        "Get these from DevTools → Application → Cookies → x.com"
-    );
-  }
-
-  const browser = await (puppeteer as any).launch({
-    headless: true,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-blink-features=AutomationControlled",
-      "--disable-infobars",
-      "--disable-dev-shm-usage",
-      "--lang=en-US,en",
-    ],
-  });
-
+async function setupPage(browser: Browser): Promise<Page> {
   const page = await browser.newPage();
-
   const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
-  await page.setUserAgent(ua);
+  await page.setUserAgent(ua!);
   await page.setViewport({
     width: 1280 + Math.floor(Math.random() * 100),
     height: 800 + Math.floor(Math.random() * 100),
   });
-
   await page.evaluateOnNewDocument(() => {
     Object.defineProperty(navigator, "webdriver", { get: () => false });
     Object.defineProperty(navigator, "languages", { get: () => ["en-US", "en"] });
@@ -73,49 +53,118 @@ async function launch(): Promise<{ browser: Browser; page: Page }> {
       return getParameter.call(this, parameter);
     };
   });
+  return page;
+}
 
+async function applyCookies(page: Page, authToken: string, ct0: string): Promise<void> {
   await page.setCookie(
-    {
-      name: "auth_token",
-      value: authToken,
-      domain: ".x.com",
-      path: "/",
-      httpOnly: true,
-      secure: true,
-    },
-    {
-      name: "ct0",
-      value: ct0,
-      domain: ".x.com",
-      path: "/",
-      secure: true,
-    }
+    { name: "auth_token", value: authToken, domain: ".x.com", path: "/", httpOnly: true, secure: true },
+    { name: "ct0", value: ct0, domain: ".x.com", path: "/", secure: true },
   );
+}
 
-  try {
-    await page.goto("https://x.com/home", { waitUntil: "networkidle2" });
-  } catch (err) {
-    await browser.close();
-    throw new Error(`Failed to load x.com/home: ${err}`);
+async function launch(): Promise<{ readPage: Page; writePage: Page }> {
+  const authToken = process.env.X_AUTH_TOKEN;
+  const ct0 = process.env.X_CT0;
+
+  if (!authToken || !ct0) {
+    throw new Error(
+      "Missing X_AUTH_TOKEN or X_CT0 in environment. " +
+        "Get these from DevTools → Application → Cookies → x.com",
+    );
   }
 
-  if (page.url().includes("/login") || page.url().includes("/i/flow/login")) {
+  const browser = await (puppeteer as any).launch({
+    headless: true,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-blink-features=AutomationControlled",
+      "--disable-infobars",
+      "--disable-dev-shm-usage",
+      "--lang=en-US,en",
+    ],
+  });
+
+  let readPage: Page;
+  let writePage: Page;
+
+  try {
+    [readPage, writePage] = await Promise.all([setupPage(browser), setupPage(browser)]);
+    await Promise.all([
+      applyCookies(readPage, authToken, ct0),
+      applyCookies(writePage, authToken, ct0),
+    ]);
+
+    // Navigate read page fully; write page only needs x.com origin for fetch calls
+    await Promise.all([
+      readPage.goto("https://x.com/home", { waitUntil: "networkidle2" }),
+      writePage.goto("https://x.com/compose/post", { waitUntil: "domcontentloaded" }),
+    ]);
+  } catch (err) {
+    await browser.close();
+    throw new Error(`Failed to initialize browser pages: ${err}`);
+  }
+
+  if (readPage.url().includes("/login") || readPage.url().includes("/i/flow/login")) {
     await browser.close();
     throw new Error("X session invalid. Check X_AUTH_TOKEN and X_CT0 in .env");
   }
 
   _browser = browser;
-  _page = page;
+  _readPage = readPage;
+  _writePage = writePage;
 
-  return { browser, page };
+  return { readPage, writePage };
 }
 
-export async function getPage(): Promise<Page> {
-  if (_browser && (_browser as any).connected && _page && !_page.isClosed()) {
-    return _page;
+async function ensurePages(): Promise<{ readPage: Page; writePage: Page }> {
+  if (
+    _browser &&
+    (_browser as any).connected &&
+    _readPage && !_readPage.isClosed() &&
+    _writePage && !_writePage.isClosed()
+  ) {
+    return { readPage: _readPage, writePage: _writePage };
   }
-  const { page } = await launch();
-  return page;
+  return launch();
+}
+
+function resetPages(page: Page): void {
+  try {
+    if (page.isClosed()) {
+      _readPage = null;
+      _writePage = null;
+    }
+  } catch {
+    _readPage = null;
+    _writePage = null;
+  }
+}
+
+export function withReadPage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
+  return readQueue.run(async () => {
+    const { readPage } = await ensurePages();
+    try {
+      return await fn(readPage);
+    } catch (err) {
+      resetPages(readPage);
+      throw err;
+    }
+  });
+}
+
+export function withWritePage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
+  return writeQueue.run(async () => {
+    const { writePage } = await ensurePages();
+    try {
+      return await fn(writePage);
+    } catch (err) {
+      resetPages(writePage);
+      throw err;
+    }
+  });
 }
 
 export async function closeBrowser(): Promise<void> {
@@ -124,7 +173,8 @@ export async function closeBrowser(): Promise<void> {
       await _browser.close();
     } catch {}
     _browser = null;
-    _page = null;
+    _readPage = null;
+    _writePage = null;
   }
 }
 

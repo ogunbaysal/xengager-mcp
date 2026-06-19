@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { client, safeJson } from "./graphql-adapter.js";
+import { client, safeJson, textResponse } from "./graphql-adapter.js";
 
 async function fetchUserId(username: string): Promise<string> {
   const user = await client().fetchUser(username);
@@ -79,5 +79,31 @@ export function registerProfileTools(server: McpServer): void {
     },
     async ({ username, limit, cursor }: { username: string; limit: number; cursor?: string }) =>
       safeJson(async () => client().fetchUserLikes(await fetchUserId(username), limit, cursor))
+  );
+
+  server.registerTool(
+    "x_follow",
+    {
+      title: "Follow User on X",
+      description: "Follow an X (Twitter) user by username via REST API.",
+      inputSchema: {
+        username: z.string().describe("X username (without @)"),
+      } as any,
+    },
+    async ({ username }: { username: string }) =>
+      safeJson(async () => { const r = await client().followUser(username); return textResponse({ ...r, message: r.success ? `Followed @${username}` : `Failed to follow @${username}` }); })
+  );
+
+  server.registerTool(
+    "x_unfollow",
+    {
+      title: "Unfollow User on X",
+      description: "Unfollow an X (Twitter) user by username via REST API.",
+      inputSchema: {
+        username: z.string().describe("X username (without @)"),
+      } as any,
+    },
+    async ({ username }: { username: string }) =>
+      safeJson(async () => { const r = await client().unfollowUser(username); return textResponse({ ...r, message: r.success ? `Unfollowed @${username}` : `Failed to unfollow @${username}` }); })
   );
 }

@@ -56,6 +56,8 @@ export interface GqlUserProfile {
   verified: boolean;
   profileImageUrl: string;
   createdAt: string;
+  /** Whether the authenticated user follows this user. `undefined` when unknown (not the authenticated user viewing). */
+  isFollowing?: boolean;
 }
 
 export interface GqlBookmarkFolder {

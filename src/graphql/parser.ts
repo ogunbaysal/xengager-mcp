@@ -116,6 +116,7 @@ export function parseUserResult(data: any): GqlUserProfile | null {
     verified: Boolean(data.is_blue_verified ?? legacy.verified ?? false),
     profileImageUrl: avatar.image_url ?? legacy.profile_image_url_https ?? "",
     createdAt: core.created_at ?? legacy.created_at ?? "",
+    isFollowing: legacy.following !== undefined ? Boolean(legacy.following) : undefined,
   };
 }
 

@@ -51,6 +51,7 @@ describe("parseUserResult", () => {
       location: "Earth",
       followers_count: 1000,
       friends_count: 200,
+      following: true,
       statuses_count: 500,
       favourites_count: 3000,
       profile_image_url_https: "https://img/alice.jpg",
@@ -92,6 +93,20 @@ describe("parseUserResult", () => {
     expect(u!.followingCount).toBe(200);
     expect(u!.tweetsCount).toBe(500);
     expect(u!.likesCount).toBe(3000);
+  });
+
+  test("parses isFollowing from legacy.following", () => {
+    const u = parseUserResult(userResult);
+    expect(u!.isFollowing).toBe(true);
+  });
+
+  test("isFollowing is undefined when legacy.following is absent", () => {
+    const result = {
+      rest_id: "u3",
+      legacy: { name: "NoFollow", screen_name: "nofollow", followers_count: 1, friends_count: 1, statuses_count: 1, favourites_count: 1 },
+    };
+    const u = parseUserResult(result);
+    expect(u!.isFollowing).toBeUndefined();
   });
 
   test("returns null for UserUnavailable", () => {

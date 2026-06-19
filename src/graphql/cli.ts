@@ -69,7 +69,8 @@ function printUsers(users: GqlUserProfile[], asJson: boolean): void {
   }
   for (const u of users) {
     const v = u.verified ? " ✓" : "";
-    console.log(`\n@${u.screenName}${v} — ${u.name}`);
+    const followTag = u.isFollowing === true ? " 🔵 following" : u.isFollowing === false ? " ⚪ not following" : "";
+    console.log(`\n@${u.screenName}${v} — ${u.name}${followTag}`);
     if (u.bio) console.log(`  ${u.bio}`);
     console.log(`  Followers: ${u.followersCount}  Following: ${u.followingCount}  Tweets: ${u.tweetsCount}`);
     if (u.location) console.log(`  📍 ${u.location}`);
