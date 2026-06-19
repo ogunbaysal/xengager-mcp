@@ -76,7 +76,7 @@ cp .env.example .env
 # Run (stdio transport — for local MCP integration)
 bun run stdio
 
-# Or run as HTTP server (for remote/ngrok setups)
+# Or run as HTTP server (for remote/Cloudflare Tunnel setups)
 bun run start
 ```
 
@@ -85,14 +85,14 @@ bun run start
 ## Docker
 
 ```bash
-# With ngrok tunneling (public MCP endpoint)
+# With Cloudflare Tunnel (public MCP endpoint, requires CLOUDFLARE_TUNNEL_TOKEN in .env)
 docker compose up
 
-# Without ngrok
+# Without tunnel
 docker compose up mcp
 ```
 
-The ngrok tunnel's public URL is printed on startup. Point your MCP client at it.
+The Cloudflare Tunnel URL is configured via `TUNNEL_HOSTNAME` in `.env` and printed on startup. Point your MCP client at it.
 
 ---
 
@@ -112,14 +112,14 @@ The ngrok tunnel's public URL is printed on startup. Point your MCP client at it
 }
 ```
 
-### Remote (ngrok)
+### Remote (Cloudflare Tunnel)
 
 ```json
 {
   "mcpServers": {
     "xengager": {
       "type": "http",
-      "url": "https://your-tunnel.ngrok.io/mcp",
+      "url": "https://your-tunnel.yourdomain.com/mcp",
       "headers": {
         "Authorization": "Bearer your-mcp-api-key"
       }
@@ -156,7 +156,8 @@ See **[SKILL.md](SKILL.md)** for the complete agent usage guide with response sh
 | `PORT` | No | HTTP server port (default: 3000) |
 | `MCP_API_KEY` | No | Bearer token for HTTP auth |
 | `ALLOWED_ORIGINS` | No | Comma-separated CORS origins (default: *) |
-| `NGROK_AUTHTOKEN` | No | Required for ngrok tunneling in docker compose |
+| `CLOUDFLARE_TUNNEL_TOKEN` | No | Tunnel token from Cloudflare Zero Trust dashboard |
+| `TUNNEL_HOSTNAME` | No | Static hostname for the tunnel (e.g., `mcp.yourdomain.com`) |
 
 ---
 

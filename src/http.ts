@@ -190,26 +190,13 @@ app.delete("/mcp", requireMcpApiKey, async (req: Request, res: Response) => {
 const server = app.listen(PORT, () => {
   console.log(`MCP Streamable HTTP server running on http://localhost:${PORT}/mcp`);
   console.log(`Health check available at http://localhost:${PORT}/health`);
-  printNgrokUrl();
+  printTunnelUrl();
 });
 
-async function printNgrokUrl() {
-  const ngrokHost = process.env.NGROK_HOST ?? "ngrok";
-  const apiUrl = `http://${ngrokHost}:4040/api/tunnels`;
-  for (let attempt = 0; attempt < 10; attempt++) {
-    await new Promise((r) => setTimeout(r, 2000));
-    try {
-      const res = await fetch(apiUrl);
-      if (!res.ok) continue;
-      const data = (await res.json()) as { tunnels?: { public_url: string }[] };
-      const url = data.tunnels?.find((t) => t.public_url.startsWith("https"))?.public_url;
-      if (url) {
-        console.log(`\nNgrok public URL: ${url}/mcp\n`);
-        return;
-      }
-    } catch {
-      // ngrok not ready yet
-    }
+function printTunnelUrl() {
+  const hostname = process.env.TUNNEL_HOSTNAME?.trim();
+  if (hostname) {
+    console.log(`\nCloudflare Tunnel URL: https://${hostname}/mcp\n`);
   }
 }
 
